@@ -132,6 +132,9 @@ parser = data_config(parser)
 parser = model_config(parser)
 parser = train_config(parser)
 parser.add_argument('--encode_mode', action='store_true', help="only encode test data")
+# Gengyu
+parser.add_argument('--label_embedding', action='store_true', help="train with label embedding")
+
 
 args = parser.parse_args()
 
@@ -156,7 +159,9 @@ def dump(path, data):
     with open(path, 'w') as f:
         json.dump(data, f)
 
-
+def dump_metrics(path, data):
+    with open(path, 'a') as f:
+        json.dump(data, f)
 
 
 def main():
@@ -280,6 +285,9 @@ def main():
             torch.save(encoding, os.path.join(output_dir, '{}_encoding.pt'.format(dataset)))
         return
 
+    metrics_log_path = os.path.join(output_dir, 'all_metrics.json')
+    metrics_log_file = open(metrics_log_path, 'a')
+
     for epoch in range(0, args.epochs):
         logger.warning('At epoch {}'.format(epoch))
         start = datetime.now()
@@ -326,6 +334,7 @@ def main():
                 score_file = os.path.join(output_dir, '{}_dev_scores_{}.json'.format(dataset, epoch))
                 results = {'metrics': dev_metrics, 'predictions': dev_predictions, 'uids': dev_ids, 'scores': scores}
                 dump(score_file, results)
+                print(dataset, epoch, 'dev', dev_metrics, file=metrics_log_file)
                 if args.glue_format_on:
                     from experiments.glue.glue_utils import submit
                     official_score_file = os.path.join(output_dir, '{}_dev_scores_{}.tsv'.format(dataset, epoch))
@@ -343,17 +352,19 @@ def main():
                 score_file = os.path.join(output_dir, '{}_test_scores_{}.json'.format(dataset, epoch))
                 results = {'metrics': test_metrics, 'predictions': test_predictions, 'uids': test_ids, 'scores': scores}
                 dump(score_file, results)
+                print(dataset, epoch, 'test', test_metrics, file=metrics_log_file)
                 if args.glue_format_on:
                     from experiments.glue.glue_utils import submit
                     official_score_file = os.path.join(output_dir, '{}_test_scores_{}.tsv'.format(dataset, epoch))
                     submit(official_score_file, results, label_dict)
                 logger.info('[new test scores saved.]')
+                logger.info(str(test_metrics))
 
         model_file = os.path.join(output_dir, 'model_{}.pt'.format(epoch))
         model.save(model_file)
     if args.tensorboard:
         tensorboard.close()
-
+    metrics_log_file.close()
 
 if __name__ == '__main__':
     main()
