@@ -62,6 +62,15 @@ class SANBertNetwork(nn.Module):
             self.decoder_opt.append(generate_decoder_opt(task_def.enable_san, opt['answer_opt']))
             self.task_types.append(task_def.task_type)
 
+        # Gengyu: 
+        if opt['label_embedding']:
+            self.label_index = []
+            tatal_label_num = 0
+            for task_id, task_def in enumerate(task_def_list):
+                self.label_index.append(torch.Tensor([idx for idx in range(tatal_label_num, tatal_label_num+task_def.n_class)]))
+                tatal_label_num += task_def.n_class
+            self.label_embedding_layer = nn.Embedding(tatal_label_num, hidden_size)
+
         # create output header
         self.scoring_list = nn.ModuleList()
         self.dropout_list = nn.ModuleList()
@@ -92,6 +101,7 @@ class SANBertNetwork(nn.Module):
                     out_proj = SANClassifier(hidden_size, hidden_size, lab, opt, prefix='answer', dropout=dropout)
                 else:
                     out_proj = nn.Linear(hidden_size, lab)
+                
             self.scoring_list.append(out_proj)
 
         self.opt = opt
@@ -129,6 +139,17 @@ class SANBertNetwork(nn.Module):
         task_obj = tasks.get_task_obj(self.task_def_list[task_id])
         if task_obj is not None:
             logits = task_obj.train_forward(sequence_output, pooled_output, premise_mask, hyp_mask, decoder_opt, self.dropout_list[task_id], self.scoring_list[task_id])
+            return logits
+        # Gengyu: label embedding, 
+        elif self.opt['label_embedding']:
+            # lookup label embedding, output: label_num(for this task), hidden_size
+            task_label_embeddings = self.label_embedding_layer(self.label_index[task_id]) 
+            # output: batch_size, 1, hidden_size
+            pooled_output = pooled_output.unsqueeze(1)
+            # output: batch_size, label_num, hidden_size
+            pooled_output = pooled_output.expand(pooled_output.size()[0], task_label_embeddings.size()[0], pooled_output.size()[2]) 
+            emb_cls_mul = torch.mul(task_label_embeddings, pooled_output)
+            logits = torch.sum(emb_cls_mul, -1)
             return logits
         elif task_type == TaskType.Span:
             assert decoder_opt != 1

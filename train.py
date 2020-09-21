@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader, BatchSampler
 from pretrained_models import *
-from tensorboardX import SummaryWriter
+#from tensorboardX import SummaryWriter
 #from torch.utils.tensorboard import SummaryWriter
 from experiments.exp_def import TaskDefs
 from mt_dnn.inference import eval_model, extract_encoding
@@ -337,7 +337,7 @@ def main():
                 with torch.no_grad():
                     test_metrics, test_predictions, scores, golds, test_ids= eval_model(model, test_data,
                                                                                         metric_meta=task_def.metric_meta,
-                                                                                        use_cuda=args.cuda, with_label=False,
+                                                                                        use_cuda=args.cuda, with_label=True,#Gengyu Fasle -> True
                                                                                         label_mapper=label_dict,
                                                                                         task_type=task_def.task_type)
                 score_file = os.path.join(output_dir, '{}_test_scores_{}.json'.format(dataset, epoch))
